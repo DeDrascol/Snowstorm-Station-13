@@ -17,6 +17,9 @@
 #define CRYPTO_HEATING_POWER	CONFIG_GET(number/crypto_heat_power)
 #define CRYPTO_IGNORE_ATMOS		CONFIG_GET(flag/crypto_ignore_atmos)
 
+// Global variable for crypto miners
+GLOBAL_VAR_INIT(crypto_blockchain_use, 1)
+
 /obj/machinery/cryptominer
 	name = "cryptocurrency miner"
 	desc = "This handy-dandy machine will produce credits for your enjoyment."
@@ -141,11 +144,17 @@
 		playsound(loc, 'sound/machines/beep.ogg', 50, TRUE, -1)
 		set_mining(FALSE)
 
+	// Define dynamic heating power
+	var/heat_amount = CRYPTO_HEATING_POWER * GLOB.crypto_blockchain_use
+
 	// Increase heat by heating_power
-	env.set_temperature(env_temp + CRYPTO_HEATING_POWER)
+	env.set_temperature(env_temp + heat_amount)
 
 	// Update air
 	air_update_turf()
+
+	// Increase blockchain usage
+	GLOB.crypto_blockchain_use += 0.001
 
 /obj/machinery/cryptominer/proc/produce_points(number)
 	playsound(loc, 'sound/machines/ping.ogg', 50, TRUE, -1)
