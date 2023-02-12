@@ -1,126 +1,225 @@
-//handle the big steppy, except nice
+// Step with intent help
 /mob/living/proc/handle_micro_bump_helping(mob/living/target)
-	if(ishuman(src))
-		var/mob/living/carbon/human/user = src
+	// Check for human user
+	if(!ishuman(src))
+		return FALSE
 
-		if(target.pulledby == user)
-			return FALSE
+	// Define human user
+	var/mob/living/carbon/human/user = src
 
-		//Micro is on a table.
-		var/turf/steppyspot = target.loc
-		for(var/thing in steppyspot.contents)
-			if(istype(thing, /obj/structure/table))
-				return TRUE
+	// Check if target is pulled by user
+	if(target.pulledby == user)
+		return FALSE
 
-		//Both small.
-		if(get_size(user) <= RESIZE_A_TINYMICRO && get_size(target) <= RESIZE_A_TINYMICRO)
-			now_pushing = 0
-			user.forceMove(target.loc)
+	// Define target's location
+	var/turf/turf_target = target.loc
+
+	// Iterate over location contents
+	for(var/possible_table in turf_target.contents)
+		// Check if iteration is a table
+		if(istype(possible_table, /obj/structure/table))
 			return TRUE
 
-		//Doing messages
-		if(COMPARE_SIZES(user, target) >= 2) //if the initiator is twice the size of the micro
-			now_pushing = 0
-			user.forceMove(target.loc)
+	// Check if both users are micros
+	if(get_size(user) <= RESIZE_A_TINYMICRO && get_size(target) <= RESIZE_A_TINYMICRO)
+		// Stop pushing
+		now_pushing = 0
 
-			//Smaller person being stepped on
-			if(iscarbon(src))
-				if(istype(user) && user.dna.features["taur"] == "Naga" || user.dna.features["taur"] == "Tentacle")
-					target.visible_message(span_notice("[src] carefully slithers around [target]."), span_notice("[src]'s huge tail slithers besides you."))
-				else
-					target.visible_message(span_notice("[src] carefully steps over [target]."), span_notice("[src] steps over you carefully."))
-				return TRUE
+		// Move user to target's location
+		user.forceMove(target.loc)
 
-		//Smaller person stepping under a larger person
-		if(COMPARE_SIZES(target, user) >= 2)
-			user.forceMove(target.loc)
-			now_pushing = 0
-			micro_step_under(target)
-			return TRUE
+		// Return
+		return TRUE
 
-//Stepping on disarm intent -- TO DO, OPTIMIZE ALL OF THIS SHIT
+	// Check if the initiator is twice the size of the target
+	if(COMPARE_SIZES(user, target) >= 2)
+		// Stop pushing
+		now_pushing = 0
+
+		// Move user to target's location
+		user.forceMove(target.loc)
+
+		// Check for slithering tauric body
+		if(user.dna.features["taur"] == "Naga" || user.dna.features["taur"] == "Tentacle")
+			// Display slither visible message
+			target.visible_message(span_notice("[src] carefully slithers around [target]."), span_notice("[src]'s huge tail slithers besides you."))
+
+		// No slithering tauric body found
+		else
+			// Display step visible message
+			target.visible_message(span_notice("[src] carefully steps over [target]."), span_notice("[src] steps over you carefully."))
+
+		// Return
+		return TRUE
+
+	// Check if target is twice the size of the initiator
+	else if(COMPARE_SIZES(target, user) >= 2)
+		// Stop pushing
+		now_pushing = 0
+
+		// Move user to target's location
+		user.forceMove(target.loc)
+
+		// Move user under target
+		micro_step_under(target)
+
+		// Return
+		return TRUE
+
+// Step with non-help intent
+// Now optimized!
 /mob/living/proc/handle_micro_bump_other(mob/living/target)
+	// Check for living target
 	ASSERT(isliving(target))
-	if(ishuman(src))
-		var/mob/living/carbon/human/user = src
 
-		if(target.pulledby == user)
+	// Check for human user
+	if(!ishuman(src))
+		return FALSE
+
+	// Define human user
+	var/mob/living/carbon/human/user = src
+
+	// Check if target is pulled by user
+	if(target.pulledby == user)
+		return FALSE
+
+	// Define target's location
+	var/turf/turf_target = target.loc
+
+	// Iterate over location contents
+	for(var/possible_table in turf_target.contents)
+		// Check if iteration is a table
+		if(istype(possible_table, /obj/structure/table))
+			return TRUE
+
+	// Check if both users are micros
+	if(get_size(user) <= RESIZE_A_TINYMICRO && get_size(target) <= RESIZE_A_TINYMICRO)
+		// Stop pushing
+		now_pushing = 0
+
+		// Move user to target's location
+		user.forceMove(turf_target)
+
+		// Return
+		return TRUE
+
+	// Check if the initiator is twice the size of the target
+	else if(COMPARE_SIZES(user, target) >= 2)
+		// Check if user can step
+		if(!(CHECK_MOBILITY(user, MOBILITY_MOVE) && !user.buckled))
 			return FALSE
 
-	//If on a table, don't
-		var/turf/steppyspot = target.loc
-		for(var/thing in steppyspot.contents)
-			if(istype(thing, /obj/structure/table))
-				return TRUE
+		// Log combat interaction
+		log_combat(user, target, "stepped on", addition="[user.a_intent] trample")
 
-	//Both small
-		if(get_size(user) <= RESIZE_A_TINYMICRO && get_size(target) <= RESIZE_A_TINYMICRO)
-			now_pushing = 0
-			user.forceMove(target.loc)
-			return TRUE
+		// Define user's slither status
+		var/user_can_slither = (user.dna?.features["taur"] == "Naga" || user.dna?.features["taur"] == "Tentacle") || FALSE
 
-		if(COMPARE_SIZES(user, target) >= 2)
-			log_combat(user, target, "stepped on", addition="[user.a_intent] trample")
-			if(user.a_intent == "disarm" && CHECK_MOBILITY(user, MOBILITY_MOVE) && !user.buckled)
-				now_pushing = 0
-				user.forceMove(target.loc)
-				user.sizediffStamLoss(target)
-				user.add_movespeed_modifier(/datum/movespeed_modifier/stomp, TRUE) //Full stop
-				addtimer(CALLBACK(user, /mob/.proc/remove_movespeed_modifier, MOVESPEED_ID_STOMP, TRUE), 3) //0.3 seconds
-				if(iscarbon(user))
-					if(istype(user) && user.dna.features["taur"] == "Naga" || user.dna.features["taur"] == "Tentacle")
-						target.visible_message(span_danger("[src] carefully rolls their tail over [target]!"), span_danger("[src]'s huge tail rolls over you!"))
-					else
-						target.visible_message(span_danger("[src] carefully steps on [target]!"), span_danger("[src] steps onto you with force!"))
-					return TRUE
+		// Set pushing status
+		now_pushing = 0
 
-			if(user.a_intent == "harm" && CHECK_MOBILITY(user, MOBILITY_MOVE) && !user.buckled)
-				now_pushing = 0
-				user.forceMove(target.loc)
-				user.sizediffStamLoss(target)
+		// Move user to target's location
+		user.forceMove(turf_target)
+
+		// Set move-speed modifier
+		user.add_movespeed_modifier(/datum/movespeed_modifier/stomp, TRUE) // Full stop
+
+		// Set target stamina loss
+		user.sizediffStamLoss(target)
+
+		// Move user to target's location
+		user.forceMove(turf_target)
+
+		// Define move-speed modifier duration
+		var/movespeed_modifier_duration = 30 // 3 second placeholder
+
+		// Define owner pronouns
+		var/user_their = user.p_their()
+
+		// Check intent type
+		switch(user.a_intent)
+			// Disarm intent
+			if(INTENT_DISARM)
+				// Set move-speed modifier duration
+				movespeed_modifier_duration = 3 // 0.3 seconds
+
+				// Check if user can slither
+				if(user_can_slither)
+					target.visible_message(span_danger("[user] carefully rolls [user_their] tail over [target]!"), span_danger("[user]'s huge tail rolls over you!"))
+
+				// User cannot slither
+				else
+					target.visible_message(span_danger("[user] carefully steps on [target]!"), span_danger("[user] steps onto you with force!"))
+
+			// Harm intent
+			if(INTENT_HARM)
+				// Set move-speed modifier duration
+				movespeed_modifier_duration = 10 // 1 second
+
+				// Check if user can slither
+				if(user_can_slither)
+					target.visible_message(span_danger("[user] mows down [target] under [user_their] tail!"), span_userdanger("[user] plows [user_their] tail over you mercilessly!"))
+
+				// User cannot slither
+				else
+					target.visible_message(span_danger("[user] slams [user_their] foot down on [target], crushing them!"), span_userdanger("[user] crushes you under [user_their] foot!"))
+
+				// Cause brute damage to target
 				user.sizediffBruteloss(target)
+
+				// Play sound effect
 				playsound(loc, 'sound/misc/splort.ogg', 50, 1)
-				user.add_movespeed_modifier(/datum/movespeed_modifier/stomp, TRUE)
-				addtimer(CALLBACK(user, /mob/.proc/remove_movespeed_modifier, MOVESPEED_ID_STOMP, TRUE), 10) //1 second
-				//user.Stun(20)
-				if(iscarbon(user))
-					if(istype(user) && (user.dna.features["taur"] == "Naga" || user.dna.features["taur"] == "Tentacle"))
-						target.visible_message(span_danger("[src] mows down [target] under their tail!"), span_userdanger("[src] plows their tail over you mercilessly!"))
-					else
-						target.visible_message(span_danger("[src] slams their foot down on [target], crushing them!"), span_userdanger("[src] crushes you under their foot!"))
-					return TRUE
 
-			if(user.a_intent == "grab" && CHECK_MOBILITY(user, MOBILITY_MOVE) && !user.buckled)
-				now_pushing = 0
-				user.forceMove(target.loc)
-				user.sizediffStamLoss(target)
+			// Grab intent
+			if(INTENT_GRAB)
+				// Set move-speed modifier duration
+				movespeed_modifier_duration = 7 // ~3/4th of a second
+
+				// Stun the target
 				user.sizediffStun(target)
-				user.add_movespeed_modifier(/datum/movespeed_modifier/stomp, TRUE)
-				addtimer(CALLBACK(user, /mob/.proc/remove_movespeed_modifier, MOVESPEED_ID_STOMP, TRUE), 7)//About 3/4th a second
-				if(iscarbon(user))
-					var/feetCover = (user.wear_suit && (user.wear_suit.body_parts_covered & FEET)) || (user.w_uniform && (user.w_uniform.body_parts_covered & FEET) || (user.shoes && (user.shoes.body_parts_covered & FEET)))
-					if(feetCover)
-						if(user?.dna?.features["taur"] == "Naga" || user?.dna?.features["taur"] == "Tentacle")
-							target.visible_message(span_danger("[src] pins [target] under their tail!"), span_danger("[src] pins you beneath their tail!"))
-						else
-							target.visible_message(span_danger("[src] pins [target] helplessly underfoot!"), span_danger("[src] pins you underfoot!"))
-						return TRUE
-					else
-						if(user?.dna?.features["taur"] == "Naga" || user?.dna?.features["taur"] == "Tentacle")
-							target.visible_message(span_danger("[user] snatches up [target] underneath their tail!"), span_userdanger("[src]'s tail winds around you and snatches you in its coils!"))
-							//target.mob_pickup_micro_feet(user)
-							SEND_SIGNAL(target, COMSIG_MICRO_PICKUP_FEET, user)
-						else
-							target.visible_message(span_danger("[user] stomps down on [target], curling their toes and picking them up!"), span_userdanger("[src]'s toes pin you down and curl around you, picking you up!"))
-							//target.mob_pickup_micro_feet(user)
-							SEND_SIGNAL(target, COMSIG_MICRO_PICKUP_FEET, user)
-						return TRUE
 
-		if(COMPARE_SIZES(target, user) >= 2)
-			user.forceMove(target.loc)
-			now_pushing = 0
-			micro_step_under(target)
-			return TRUE
+				// Check for non-exposed feet
+				if(!user.has_feet(REQUIRE_EXPOSED))
+					// Check if user can slither
+					if(user_can_slither)
+						target.visible_message(span_danger("[user] pins [target] under [user_their] tail!"), span_danger("[user] pins you beneath [user_their] tail!"))
+
+					// User cannot slither
+					else
+						target.visible_message(span_danger("[user] pins [target] helplessly underfoot!"), span_danger("[user] pins you underfoot!"))
+
+				// User has exposed feet
+				else
+					// Check if user can slither
+					if(user_can_slither)
+						target.visible_message(span_danger("[user] snatches up [target] underneath [user_their] tail!"), span_userdanger("[user]'s tail winds around you and snatches you in its coils!"))
+
+					// User cannot slither
+					else
+						target.visible_message(span_danger("[user] stomps down on [target], curling [user_their] toes and picking them up!"), span_userdanger("[user]'s toes pin you down and curl around you, picking you up!"))
+
+					// Pick up target with user's feet
+					SEND_SIGNAL(target, COMSIG_MICRO_PICKUP_FEET, user)
+
+		// Set move-speed modifier removal callback
+		addtimer(CALLBACK(user, /mob/.proc/remove_movespeed_modifier, MOVESPEED_ID_STOMP, TRUE), movespeed_modifier_duration)
+
+		// Return
+		return TRUE
+
+	// Check if target is twice the size of the initiator
+	else if(COMPARE_SIZES(target, user) >= 2)
+		// Stop pushing
+		now_pushing = 0
+
+		// Move user to target's location
+		user.forceMove(target.loc)
+
+		// Move user under target
+		micro_step_under(target)
+
+		// Return
+		return TRUE
 
 /mob/living/proc/macro_step_around(mob/living/target)
 	if(ishuman(src))
